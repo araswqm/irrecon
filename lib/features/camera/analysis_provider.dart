@@ -1,13 +1,14 @@
+import 'dart:convert';
 import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:dio/dio.dart';
 import '../../core/api/api_engine.dart';
 import '../../core/api/openai_provider.dart';
 import '../../core/api/anthropic_provider.dart';
 import '../../core/api/gemini_provider.dart';
 import '../../core/api/ollama_provider.dart';
 import '../../core/api/custom_provider.dart';
-import '../../core/api/deepseek_provider.dart';
 import '../../core/utils/image_optimizer.dart';
 import '../../data/models/analysis_result.dart';
 import '../../data/database/app_database.dart';
@@ -101,9 +102,13 @@ class AnalysisNotifier extends StateNotifier<AnalysisState> {
         matches: matches,
       );
     } catch (e) {
+      String message = e.toString();
+      if (e is DioException) {
+        message = _formatDioError(e);
+      }
       state = state.copyWith(
         step: AnalysisStep.error,
-        errorMessage: e.toString(),
+        errorMessage: message,
       );
     }
   }
@@ -118,6 +123,50 @@ class AnalysisNotifier extends StateNotifier<AnalysisState> {
 
   void reset() {
     state = const AnalysisState();
+  }
+
+  /// Format a DioException with its response body so users see the real API error.
+  String _formatDioError(DioException e) {
+    final buffer = StringBuffer()
+      ..write('DioException [${e.type.name}]');
+
+    if (e.response != null) {
+      final resp = e.response!;
+      buffer.write(' | HTTP ${resp.statusCode}');
+      if (resp.statusMessage != null) {
+        buffer.write(' ${resp.statusMessage}');
+      }
+      // Extract meaningful body — try JSON first, fall back to raw string
+      if (resp.data != null) {
+        buffer.write('\n\nResponse body:');
+        if (resp.data is Map || resp.data is List) {
+          buffer.write('\n${_compactJson(resp.data)}');
+        } else {
+          final body = resp.data.toString();
+          // Truncate very long responses
+          buffer.write('\n${body.length > 2000 ? '${body.substring(0, 2000)}…' : body}');
+        }
+      }
+    } else {
+      buffer.write(' | ${e.message}');
+    }
+
+    return buffer.toString();
+  }
+
+  /// Compact one-line JSON for readability in error messages.
+  String _compactJson(dynamic data) {
+    try {
+      // Pretty-print with 2-space indent but cap depth
+      final encoder = data is List
+          ? const JsonEncoder.withIndent('  ')
+          : const JsonEncoder.withIndent('  ');
+      final pretty = encoder.convert(data);
+      // Keep at most 3000 chars of pretty-printed JSON
+      return pretty.length > 3000 ? '${pretty.substring(0, 3000)}\n…' : pretty;
+    } catch (_) {
+      return data.toString();
+    }
   }
 
   Future<ApiEngine> _createProvider() async {
@@ -137,8 +186,6 @@ class AnalysisNotifier extends StateNotifier<AnalysisState> {
         return OllamaProvider(storage: storage);
       case AIProvider.custom:
         return CustomProvider(storage: storage);
-      case AIProvider.deepSeek:
-        return DeepSeekProvider(storage: storage);
     }
   }
 

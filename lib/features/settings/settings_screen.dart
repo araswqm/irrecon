@@ -10,6 +10,7 @@ import '../../core/api/api_engine.dart';
 import '../../core/constants.dart';
 import '../../app/theme.dart';
 import '../../core/utils/ir_parser.dart';
+import '../../core/utils/ir_logger.dart';
 import '../../data/database/app_database.dart';
 import '../../data/models/device_type.dart';
 import '../../data/models/brand.dart';
@@ -58,7 +59,6 @@ class SettingsScreen extends ConsumerWidget {
           _buildAnthropicKeyField(context, ref),
           _buildGeminiKeyField(context, ref),
           _buildOllamaUrlField(context, ref),
-          _buildDeepSeekKeyField(context, ref),
           const SizedBox(height: 8),
           _buildCustomApiFields(context, ref),
           const SizedBox(height: 24),
@@ -66,6 +66,11 @@ class SettingsScreen extends ConsumerWidget {
           // ── Database Section ──
           _buildSectionHeader(theme, 'Database'),
           _buildDatabaseCard(context, ref),
+          const SizedBox(height: 24),
+
+          // ── Debug Log Section ──
+          _buildSectionHeader(theme, 'Debug'),
+          _buildDebugLogCard(context),
           const SizedBox(height: 24),
 
           // ── Theme Section ──
@@ -128,7 +133,6 @@ class SettingsScreen extends ConsumerWidget {
             _providerItem(AIProvider.anthropic, 'Anthropic Claude'),
             _providerItem(AIProvider.gemini, 'Google Gemini'),
             _providerItem(AIProvider.ollama, 'Ollama (Local)'),
-            _providerItem(AIProvider.deepSeek, 'DeepSeek'),
             _providerItem(AIProvider.custom, 'Custom API'),
           ],
           onChanged: (p) {
@@ -188,17 +192,6 @@ class SettingsScreen extends ConsumerWidget {
       icon: Icons.link_rounded,
       hint: 'http://localhost:11434',
       obscure: false,
-    );
-  }
-
-  Widget _buildDeepSeekKeyField(BuildContext context, WidgetRef ref) {
-    return _keyField(
-      context,
-      ref,
-      key: AppConstants.keyDeepSeekKey,
-      label: 'DeepSeek API Key',
-      icon: Icons.key_rounded,
-      hint: 'sk-...',
     );
   }
 
@@ -487,41 +480,23 @@ class SettingsScreen extends ConsumerWidget {
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
           child: StatefulBuilder(
             builder: (context, setInnerState) {
-              return TextFormField(
-                key: ValueKey(key),
-                initialValue: '',
-                obscureText: obscure && isObscured,
-                decoration: InputDecoration(
-                  labelText: label,
-                  hintText: hint,
-                  prefixIcon: Icon(icon),
-                  border: InputBorder.none,
-                  suffixIcon: obscure
-                      ? IconButton(
-                          icon: Icon(
-                            isObscured
-                                ? Icons.visibility_off
-                                : Icons.visibility,
-                          ),
-                          onPressed: () {
-                            if (isObscured) {
-                              ref
-                                  .read(_obscuredProvider.notifier)
-                                  .update((s) => {...s}..remove(key));
-                            } else {
-                              ref
-                                  .read(_obscuredProvider.notifier)
-                                  .update((s) => {...s}..add(key));
-                            }
-                          },
-                        )
-                      : null,
-                ),
-                onFieldSubmitted: (value) {
-                  _saveKey(key, value);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('$label saved')),
-                  );
+              return ApiKeyField(
+                storageKey: key,
+                label: label,
+                hint: hint,
+                icon: icon,
+                obscure: obscure,
+                isObscured: isObscured,
+                onToggleObscured: () {
+                  if (isObscured) {
+                    ref
+                        .read(_obscuredProvider.notifier)
+                        .update((s) => {...s}..remove(key));
+                  } else {
+                    ref
+                        .read(_obscuredProvider.notifier)
+                        .update((s) => {...s}..add(key));
+                  }
                 },
               );
             },
@@ -529,6 +504,156 @@ class SettingsScreen extends ConsumerWidget {
         ),
       ),
     );
+  }
+
+  Widget _buildDebugLogCard(BuildContext context) {
+    return Card(
+      child: Column(
+        children: [
+          ListTile(
+            leading: Icon(Icons.bug_report_rounded,
+                color: Theme.of(context).colorScheme.primary),
+            title: const Text('IR Debug Log'),
+            subtitle: const Text('View IR transmission logs'),
+            trailing: const Icon(Icons.arrow_forward_rounded),
+            onTap: () => _showDebugLog(context),
+          ),
+          ButtonBar(
+            children: [
+              TextButton.icon(
+                icon: const Icon(Icons.refresh_rounded, size: 18),
+                label: const Text('Refresh'),
+                onPressed: () => _showDebugLog(context),
+              ),
+              TextButton.icon(
+                icon: Icon(Icons.delete_outline, size: 18,
+                    color: Theme.of(context).colorScheme.error),
+                label: Text('Clear',
+                    style: TextStyle(
+                        color: Theme.of(context).colorScheme.error)),
+                onPressed: () => _clearDebugLog(context),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _showDebugLog(BuildContext context) async {
+    try {
+      final logContent = await IrLogger().readLog();
+      if (!context.mounted) return;
+
+      showDialog(
+        context: context,
+        builder: (ctx) => Dialog(
+          insetPadding: const EdgeInsets.all(12),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              AppBar(
+                title: const Text('IR Debug Log'),
+                leading: IconButton(
+                  icon: const Icon(Icons.close),
+                  onPressed: () => Navigator.of(ctx).pop(),
+                ),
+                actions: [
+                  IconButton(
+                    icon: const Icon(Icons.content_copy),
+                    tooltip: 'Copy all',
+                    onPressed: () {
+                      // Copy to clipboard handled by platform channel if available
+                      ScaffoldMessenger.of(ctx).showSnackBar(
+                        const SnackBar(content: Text('Log copied (use long-press to select)')),
+                      );
+                    },
+                  ),
+                ],
+              ),
+              Expanded(
+                child: logContent == '(no log entries yet)'
+                    ? Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.inbox_rounded,
+                                size: 48,
+                                color: Theme.of(ctx).colorScheme.onSurfaceVariant.withValues(alpha: 0.4)),
+                            const SizedBox(height: 8),
+                            Text(
+                              'No IR transmissions logged yet.\nTry pressing a button on a remote screen.',
+                              textAlign: TextAlign.center,
+                              style: Theme.of(ctx).textTheme.bodyMedium?.copyWith(
+                                    color: Theme.of(ctx).colorScheme.onSurfaceVariant,
+                                  ),
+                            ),
+                          ],
+                        ),
+                      )
+                    : SingleChildScrollView(
+                        padding: const EdgeInsets.all(12),
+                        child: SelectableText(
+                          logContent,
+                          style: const TextStyle(
+                            fontFamily: 'monospace',
+                            fontSize: 11,
+                            height: 1.4,
+                          ),
+                        ),
+                      ),
+              ),
+              Padding(
+                padding: const EdgeInsets.all(8),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      '~${logContent.split('\n').length} lines',
+                      style: Theme.of(ctx).textTheme.bodySmall,
+                    ),
+                    TextButton.icon(
+                      icon: Icon(Icons.delete_outline, size: 18,
+                          color: Theme.of(ctx).colorScheme.error),
+                      label: Text('Clear Log',
+                          style: TextStyle(
+                              color: Theme.of(ctx).colorScheme.error)),
+                      onPressed: () {
+                        Navigator.of(ctx).pop();
+                        _clearDebugLog(context);
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to read log: $e')),
+      );
+    }
+  }
+
+  Future<void> _clearDebugLog(BuildContext context) async {
+    try {
+      await IrLogger().clear();
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('IR debug log cleared'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to clear log: $e')),
+      );
+    }
   }
 
   Widget _buildThemeSelector(WidgetRef ref) {
@@ -868,7 +993,7 @@ class SettingsScreen extends ConsumerWidget {
             fileUrl: null,
           ));
 
-          // Add keys
+          // Add keys — preserve ALL fields including raw signal data
           for (final key in keys) {
             allKeys.add(IRKey(
               name: key.name,
@@ -876,6 +1001,9 @@ class SettingsScreen extends ConsumerWidget {
               protocol: key.protocol,
               address: key.address,
               command: key.command,
+              frequency: key.frequency,
+              dutyCycle: key.dutyCycle,
+              data: key.data,
               modelId: mId,
             ));
           }
@@ -943,5 +1071,101 @@ class SettingsScreen extends ConsumerWidget {
         );
       }
     }
+  }
+}
+
+/// A text field that loads a saved API key from [FlutterSecureStorage] on
+/// init and auto-saves on every keystroke (not just on submit).
+class ApiKeyField extends StatefulWidget {
+  final String storageKey;
+  final String label;
+  final String? hint;
+  final IconData icon;
+  final bool obscure;
+  final bool isObscured;
+  final VoidCallback onToggleObscured;
+
+  const ApiKeyField({
+    super.key,
+    required this.storageKey,
+    required this.label,
+    this.hint,
+    required this.icon,
+    required this.obscure,
+    required this.isObscured,
+    required this.onToggleObscured,
+  });
+
+  @override
+  State<ApiKeyField> createState() => _ApiKeyFieldState();
+}
+
+class _ApiKeyFieldState extends State<ApiKeyField> {
+  final _controller = TextEditingController();
+  bool _loaded = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSavedValue();
+  }
+
+  Future<void> _loadSavedValue() async {
+    final storage = const FlutterSecureStorage();
+    final saved = await storage.read(key: widget.storageKey);
+    if (saved != null && saved.isNotEmpty) {
+      _controller.text = saved;
+    }
+    if (mounted) setState(() => _loaded = true);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return TextFormField(
+      key: ValueKey(widget.storageKey),
+      controller: _controller,
+      obscureText: widget.obscure && widget.isObscured,
+      decoration: InputDecoration(
+        labelText: widget.label,
+        hintText: widget.hint,
+        prefixIcon: Icon(widget.icon),
+        border: InputBorder.none,
+        suffixIcon: widget.obscure
+            ? IconButton(
+                icon: Icon(
+                  widget.isObscured
+                      ? Icons.visibility_off
+                      : Icons.visibility,
+                ),
+                onPressed: widget.onToggleObscured,
+              )
+            : null,
+      ),
+      onChanged: (value) {
+        if (value.isNotEmpty) {
+          const FlutterSecureStorage().write(
+            key: widget.storageKey,
+            value: value,
+          );
+        }
+      },
+      onFieldSubmitted: (value) {
+        if (value.isNotEmpty) {
+          const FlutterSecureStorage().write(
+            key: widget.storageKey,
+            value: value,
+          );
+        }
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('${widget.label} saved')),
+        );
+      },
+    );
   }
 }

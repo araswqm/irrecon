@@ -50,7 +50,7 @@ class AnthropicProvider implements ApiEngine {
         'Content-Type': 'application/json',
       }),
       data: {
-        'model': 'claude-sonnet-4-20250514',
+        'model': 'claude-sonnet-5',
         'max_tokens': 1024,
         'messages': [
           {
@@ -101,7 +101,7 @@ class AnthropicProvider implements ApiEngine {
           'Content-Type': 'application/json',
         }),
         data: {
-          'model': 'claude-haiku-3-5-20241022',
+          'model': 'claude-haiku-4-5-20251001',
           'max_tokens': 10,
           'messages': [
             {'role': 'user', 'content': 'Respond with "ok".'},

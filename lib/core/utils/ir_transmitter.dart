@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import '../../data/models/ir_key.dart';
+import 'ir_logger.dart';
 import 'ir_protocols.dart';
 
 /// Wraps the Android ConsumerIrManager API via a Flutter MethodChannel.
@@ -51,8 +52,13 @@ class IrTransmitter {
             .map((s) => int.tryParse(s) ?? 0)
             .toList();
 
-        if (pattern.isEmpty) return false;
+        if (pattern.isEmpty) {
+          debugPrint('IrTransmitter: raw signal has empty pattern (name=${key.name})');
+          return false;
+        }
 
+        debugPrint('IrTransmitter: sending raw signal '
+            'name=${key.name} freq=${key.frequency} pattern_len=${pattern.length}');
         return await _channel.invokeMethod<bool>('transmit', <String, dynamic>{
           'frequency': key.frequency,
           'pattern': pattern,
@@ -61,20 +67,31 @@ class IrTransmitter {
 
       // ── Parsed signal ──
       if (key.protocol != null && key.address != null && key.command != null) {
+        debugPrint('IrTransmitter: decoding parsed signal '
+            'name=${key.name} proto=${key.protocol} addr=${key.address} cmd=${key.command}');
         final decoded = IRProtocolDecoder.decode(
           protocol: key.protocol!,
           address: key.address!,
           command: key.command!,
         );
 
-        if (decoded == null) return false;
+        if (decoded == null) {
+          debugPrint('IrTransmitter: decoder returned null for '
+              'proto=${key.protocol} addr=${key.address} cmd=${key.command}');
+          return false;
+        }
 
+        debugPrint('IrTransmitter: sending decoded signal '
+            'freq=${decoded.frequency} timing_len=${decoded.timing.length}');
         return await _channel.invokeMethod<bool>('transmit', <String, dynamic>{
           'frequency': decoded.frequency,
           'pattern': decoded.timing,
         }) ?? false;
       }
 
+      debugPrint('IrTransmitter: cannot transmit — no valid signal path '
+          'type=${key.type} freq=${key.frequency} data=${key.data?.substring(0, 20)} '
+          'proto=${key.protocol} addr=${key.address} cmd=${key.command}');
       return false;
     } on MissingPluginException {
       return false;

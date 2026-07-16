@@ -6,7 +6,6 @@ enum AIProvider {
   anthropic,
   gemini,
   ollama,
-  deepSeek,
   custom,
 }
 

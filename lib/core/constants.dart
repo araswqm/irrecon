@@ -41,7 +41,6 @@ class AppConstants {
   static const String keyCustomEndpoint = 'custom_api_endpoint';
   static const String keyCustomHeaders = 'custom_api_headers';
   static const String keyCustomBodyTemplate = 'custom_api_body_template';
-  static const String keyDeepSeekKey = 'deepseek_api_key';
   static const String keyDbVersion = 'db_version';
   static const String keyDbLastUpdated = 'db_last_updated';
 }
