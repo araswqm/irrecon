@@ -7,6 +7,7 @@ import '../../core/api/anthropic_provider.dart';
 import '../../core/api/gemini_provider.dart';
 import '../../core/api/ollama_provider.dart';
 import '../../core/api/custom_provider.dart';
+import '../../core/api/deepseek_provider.dart';
 import '../../core/utils/image_optimizer.dart';
 import '../../data/models/analysis_result.dart';
 import '../../data/database/app_database.dart';
@@ -136,6 +137,8 @@ class AnalysisNotifier extends StateNotifier<AnalysisState> {
         return OllamaProvider(storage: storage);
       case AIProvider.custom:
         return CustomProvider(storage: storage);
+      case AIProvider.deepSeek:
+        return DeepSeekProvider(storage: storage);
     }
   }
 
