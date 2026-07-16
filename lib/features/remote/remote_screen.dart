@@ -527,7 +527,7 @@ class RemoteScreen extends ConsumerWidget {
     'KEY_GOTO': Icons.gps_fixed,
     'KEY_SEARCH': Icons.search,
     'KEY_FAVORITES': Icons.favorite,
-    'KEY_WIDE': Icons.wide,
+    'KEY_WIDE': Icons.fullscreen,
     'KEY_SURROUND': Icons.surround_sound,
     'KEY_MONITOR': Icons.monitor,
   };

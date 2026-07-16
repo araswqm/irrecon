@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import '../../data/models/ir_key.dart';
 import 'ir_protocols.dart';
