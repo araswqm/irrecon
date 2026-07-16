@@ -692,6 +692,61 @@ class SettingsScreen extends ConsumerWidget {
         throw Exception('No device type directories found in the archive');
       }
 
+      // Determine brand depth for each device type.
+      //
+      // Most device types follow {dt}/{brand}/{model}.ir so brands are
+      // at depth 1.  Car_Multimedia has an extra sub-category layer:
+      //   Car_Multimedia/{subcat}/{brand}/{model}.ir  → depth 2
+      //
+      // A few files live directly in the dt dir (no brand):
+      //   Fans/Generic_Fan_HS95104SK.ir               → depth 0
+      //
+      // The rule: if any depth-1 subdirectory directly contains .ir files,
+      // brands are at depth 1.  Otherwise check depth 2.
+      final brandDepth = <String, int>{};
+      for (final dtName in deviceTypeNames) {
+        final dtDir = Directory('${scanRoot.path}/$dtName');
+        bool hasIrAtDepth1 = false;
+        bool hasIrAtDepth2 = false;
+        await for (final child in dtDir.list(recursive: false)) {
+          if (child is File && child.path.endsWith('.ir')) {
+            // brand-less file directly under dt dir
+            if (!hasIrAtDepth1) hasIrAtDepth1 = true;
+          } else if (child is Directory) {
+            final hasDirectIr = await child.list(recursive: false).any(
+              (e) => e is File && e.path.endsWith('.ir'),
+            );
+            if (hasDirectIr) hasIrAtDepth1 = true;
+          }
+        }
+        if (!hasIrAtDepth1) {
+          // Check depth 2 — sub-category dirs
+          await for (final child in dtDir.list(recursive: false)) {
+            if (child is Directory) {
+              final subDirHasIr = await child.list(recursive: false).any(
+                (e) => e is Directory && e.path.endsWith('.ir') == false,
+              );
+              if (subDirHasIr) {
+                // This sub-category has subdirs — grandchild may be a brand
+                await for (final subChild in child.list(recursive: false)) {
+                  if (subChild is Directory) {
+                    final gcIr = await subChild.list(recursive: false).any(
+                      (e) => e is File && e.path.endsWith('.ir'),
+                    );
+                    if (gcIr) { hasIrAtDepth2 = true; break; }
+                  } else if (subChild is File && subChild.path.endsWith('.ir')) {
+                    hasIrAtDepth2 = true;
+                    break;
+                  }
+                }
+                if (hasIrAtDepth2) break;
+              }
+            }
+          }
+        }
+        brandDepth[dtName] = hasIrAtDepth2 ? 2 : (hasIrAtDepth1 ? 1 : 0);
+      }
+
       // Collect .ir files, excluding any under _Converted_ or similar dirs
       final allIrFiles = <File>[];
       await for (final entity in scanRoot.list(recursive: true)) {
@@ -743,9 +798,21 @@ class SettingsScreen extends ConsumerWidget {
         }
         if (deviceTypeName == null || dtPartIdx < 0) continue;
 
-        final brandPartIdx = dtPartIdx + 1;
-        if (brandPartIdx >= parts.length) continue;
-        final brandName = parts[brandPartIdx];
+        final depth = brandDepth[deviceTypeName] ?? 1;
+
+        // Extract brand name based on detected depth.
+        // depth=1: {dt}/{brand}/{model}.ir
+        // depth=2: {dt}/{subcat}/{brand}/{model}.ir
+        // depth=0: no brand dir — file is directly under dt
+        String brandName;
+        if (depth >= 1) {
+          final brandPartIdx = dtPartIdx + depth;
+          if (brandPartIdx >= parts.length) continue;
+          brandName = parts[brandPartIdx];
+        } else {
+          // brand-less file — manufacture a brand from the file name prefix
+          brandName = 'Unknown';
+        }
 
         // Model name from the file name (most specific identifier)
         final fileName = parts.last;

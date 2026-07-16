@@ -2,47 +2,68 @@ import '../../data/models/ir_key.dart';
 
 /// Parses Flipper Zero .ir file format content into a list of IRKey.
 ///
+/// Flipper-IRDB format — signals are NOT separated by `---`. Each new
+/// `name:` field starts the next signal. Comment lines (`#`) and blank
+/// lines are ignored. The `---` separator (used by some other Flipper
+/// tools) is also supported for backwards compatibility.
+///
 /// Format:
 /// ```
 /// Filetype: IR signals file
 /// Version: 1
-/// name: KEY_POWER
+/// # comment
+/// name: Power
 /// type: parsed
 /// protocol: NEC
 /// address: 00 00 00 00
 /// command: 00 00 00 00
-/// ---
+/// #
+/// name: Vol_up
+/// ...
 /// ```
 class IRParser {
   /// Parse the full text content of a .ir file.
   static List<IRKey> parse(String content) {
     final keys = <IRKey>[];
-    final signals = content.split('---');
 
-    for (final signal in signals) {
-      final trimmed = signal.trim();
-      if (trimmed.isEmpty) continue;
-
-      final key = _parseSignal(trimmed);
-      if (key != null) {
-        keys.add(key);
-      }
-    }
-
-    return keys;
-  }
-
-  static IRKey? _parseSignal(String signal) {
     String? name;
     String type = 'parsed';
     String? protocol;
     String? address;
     String? command;
 
-    for (final line in signal.split('\n')) {
+    void flush() {
+      if (name != null && name!.isNotEmpty) {
+        keys.add(IRKey(
+          name: name!,
+          type: type,
+          protocol: protocol,
+          address: address,
+          command: command,
+        ));
+        name = null;
+        type = 'parsed';
+        protocol = null;
+        address = null;
+        command = null;
+      }
+    }
+
+    for (final line in content.split('\n')) {
       final trimmed = line.trim();
-      if (trimmed.isEmpty || trimmed.startsWith('Filetype:') ||
-          trimmed.startsWith('Version:')) {
+      if (trimmed.isEmpty) continue;
+
+      // `---` is a hard separator in some Flipper tool outputs.
+      if (trimmed == '---') {
+        flush();
+        continue;
+      }
+
+      // Skip header / comment lines (they separate signals visually but
+      // are not required for boundary detection).
+      if (trimmed.startsWith('Filetype:') ||
+          trimmed.startsWith('Version:') ||
+          trimmed.startsWith('#')) {
         continue;
       }
 
@@ -52,29 +73,28 @@ class IRParser {
       final key = trimmed.substring(0, colonIndex).trim();
       final value = trimmed.substring(colonIndex + 1).trim();
 
-      switch (key) {
-        case 'name':
-          name = value;
-        case 'type':
-          type = value;
-        case 'protocol':
-          protocol = value;
-        case 'address':
-          address = value;
-        case 'command':
-          command = value;
+      if (key == 'name') {
+        // Each new `name:` starts the next signal.
+        flush();
+        name = value;
+      } else {
+        switch (key) {
+          case 'type':
+            type = value;
+          case 'protocol':
+            protocol = value;
+          case 'address':
+            address = value;
+          case 'command':
+            command = value;
+        }
       }
     }
 
-    if (name == null || name.isEmpty) return null;
+    // Flush the last signal.
+    flush();
 
-    return IRKey(
-      name: name,
-      type: type,
-      protocol: protocol,
-      address: address,
-      command: command,
-    );
+    return keys;
   }
 
   /// Serialize a list of IRKey back to .ir file format.
