@@ -664,7 +664,6 @@ class SettingsScreen extends ConsumerWidget {
 
       // ── Step 3: Walk the tree and collect .ir files ──
       final rootDir = Directory(extractDir.path);
-      final rootPath = rootDir.path.replaceAll('\\', '/');
 
       // Discover device type directories (top-level dirs under root).
       // Skip _Converted_ (6944 files in CSV/Pronto/IR_Plus format, wrong structure),

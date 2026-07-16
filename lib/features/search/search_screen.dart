@@ -130,7 +130,6 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     }
 
     // Results
-    final db = AppDatabase();
     return ListView(
       padding: const EdgeInsets.symmetric(vertical: 8),
       children: [
