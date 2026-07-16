@@ -665,11 +665,22 @@ class SettingsScreen extends ConsumerWidget {
       // ── Step 3: Walk the tree and collect .ir files ──
       final rootDir = Directory(extractDir.path);
 
-      // Discover device type directories (top-level dirs under root).
+      // GitHub zip wraps in `Flipper-IRDB-main/` — auto-descend if there's
+      // a single wrapper dir so we land on the real device-type dirs.
+      Directory scanRoot = rootDir;
+      {
+        final topDirs = <Directory>[];
+        await for (final e in rootDir.list(recursive: false)) {
+          if (e is Directory) topDirs.add(e);
+        }
+        if (topDirs.length == 1) scanRoot = topDirs.first;
+      }
+
+      // Discover device type directories (top-level dirs under scan root).
       // Skip _Converted_ (6944 files in CSV/Pronto/IR_Plus format, wrong structure),
       // .git, .github, and any other non-device-type dirs.
       final deviceTypeNames = <String>{};
-      await for (final entity in rootDir.list(recursive: false)) {
+      await for (final entity in scanRoot.list(recursive: false)) {
         if (entity is Directory) {
           final dirName = entity.path.replaceAll('\\', '/').split('/').last;
           if (dirName.startsWith('_') || dirName.startsWith('.')) continue;
@@ -683,7 +694,7 @@ class SettingsScreen extends ConsumerWidget {
 
       // Collect .ir files, excluding any under _Converted_ or similar dirs
       final allIrFiles = <File>[];
-      await for (final entity in rootDir.list(recursive: true)) {
+      await for (final entity in scanRoot.list(recursive: true)) {
         if (entity is File && entity.path.endsWith('.ir')) {
           final path = entity.path.replaceAll('\\', '/');
           // Skip files not under a known device type dir
