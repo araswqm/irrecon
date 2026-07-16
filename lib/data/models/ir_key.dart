@@ -5,6 +5,9 @@ class IRKey {
   final String? protocol;
   final String? address;
   final String? command;
+  final int? frequency;
+  final double? dutyCycle;
+  final String? data;
   final int? modelId;
 
   const IRKey({
@@ -13,6 +16,9 @@ class IRKey {
     this.protocol,
     this.address,
     this.command,
+    this.frequency,
+    this.dutyCycle,
+    this.data,
     this.modelId,
   });
 
@@ -73,6 +79,9 @@ class IRKey {
         'protocol': protocol,
         'address': address,
         'command': command,
+        'frequency': frequency,
+        'duty_cycle': dutyCycle,
+        'data': data,
         'model_id': modelId,
       };
 
@@ -82,11 +91,17 @@ class IRKey {
         protocol: map['protocol'] as String?,
         address: map['address'] as String?,
         command: map['command'] as String?,
+        frequency: map['frequency'] as int?,
+        dutyCycle: map['duty_cycle'] != null
+            ? (map['duty_cycle'] as num).toDouble()
+            : null,
+        data: map['data'] as String?,
         modelId: map['model_id'] as int?,
       );
 
   @override
-  String toString() => 'IRKey(name: $name)';
+  String toString() => 'IRKey(name: $name, type: $type, '
+      'protocol: $protocol, frequency: $frequency)';
 }
 
 /// Categories used by the layout engine for dynamic remote UI positioning.

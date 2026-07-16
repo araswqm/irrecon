@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../core/utils/ir_parser.dart';
 import '../../core/utils/layout_engine.dart';
+import '../../core/utils/ir_transmitter.dart';
 import '../../core/constants.dart';
 import '../../data/models/ir_key.dart';
 import '../../data/database/app_database.dart';
@@ -100,11 +101,11 @@ class RemoteScreen extends ConsumerWidget {
               children: [
                 // Volume rocker
                 if (layout.volumeButtons.isNotEmpty)
-                  _buildRocker(theme, layout.volumeButtons, Icons.volume_up),
+                  _buildRocker(context, theme, layout.volumeButtons, Icons.volume_up),
                 // Channel rocker
                 if (layout.channelButtons.isNotEmpty)
                   _buildRocker(
-                      theme, layout.channelButtons, Icons.tv_rounded),
+                      context, theme, layout.channelButtons, Icons.tv_rounded),
               ],
             ),
             const SizedBox(height: AppConstants.buttonSpacing),
@@ -201,7 +202,7 @@ class RemoteScreen extends ConsumerWidget {
         ),
         onPressed: () {
           HapticFeedback.lightImpact();
-          _onKeyPressed(key);
+          _onKeyPressed(context, key);
         },
         child: icon != null
             ? Icon(icon, size: 24, color: isPower
@@ -226,7 +227,7 @@ class RemoteScreen extends ConsumerWidget {
   }
 
   Widget _buildRocker(
-      ThemeData theme, List<PositionedKey> keys, IconData icon) {
+      BuildContext context, ThemeData theme, List<PositionedKey> keys, IconData icon) {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: keys.map((pk) {
@@ -245,7 +246,7 @@ class RemoteScreen extends ConsumerWidget {
             ),
             onPressed: () {
               HapticFeedback.lightImpact();
-              _onKeyPressed(pk.key);
+              _onKeyPressed(context, pk.key);
             },
             child: Icon(
               isUp ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
@@ -273,33 +274,33 @@ class RemoteScreen extends ConsumerWidget {
       children: [
         // Up
         if (up.isNotEmpty)
-          _dPadButton(theme, up.first.key, Icons.keyboard_arrow_up),
+          _dPadButton(context, theme, up.first.key, Icons.keyboard_arrow_up),
         const SizedBox(height: 4),
         // Left + OK + Right
         Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             if (left.isNotEmpty)
-              _dPadButton(theme, left.first.key, Icons.keyboard_arrow_left),
+              _dPadButton(context, theme, left.first.key, Icons.keyboard_arrow_left),
             if (ok.isNotEmpty)
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 4),
-                child: _dPadButton(theme, ok.first.key, null,
+                child: _dPadButton(context, theme, ok.first.key, null,
                     isCenter: true),
               ),
             if (right.isNotEmpty)
-              _dPadButton(theme, right.first.key, Icons.keyboard_arrow_right),
+              _dPadButton(context, theme, right.first.key, Icons.keyboard_arrow_right),
           ],
         ),
         const SizedBox(height: 4),
         // Down
         if (down.isNotEmpty)
-          _dPadButton(theme, down.first.key, Icons.keyboard_arrow_down),
+          _dPadButton(context, theme, down.first.key, Icons.keyboard_arrow_down),
       ],
     );
   }
 
-  Widget _dPadButton(ThemeData theme, IRKey key, IconData? icon,
+  Widget _dPadButton(BuildContext context, ThemeData theme, IRKey key, IconData? icon,
       {bool isCenter = false}) {
     return RawMaterialButton(
       fillColor: isCenter
@@ -314,7 +315,7 @@ class RemoteScreen extends ConsumerWidget {
       ),
       onPressed: () {
         HapticFeedback.lightImpact();
-        _onKeyPressed(key);
+        _onKeyPressed(context, key);
       },
       child: icon != null
           ? Icon(icon, color: theme.colorScheme.onSurfaceVariant)
@@ -350,7 +351,7 @@ class RemoteScreen extends ConsumerWidget {
                   ),
                   onPressed: () {
                     HapticFeedback.lightImpact();
-                    _onKeyPressed(pk.key);
+                    _onKeyPressed(context, pk.key);
                   },
                   child: Text(
                     _numberLabel(pk.key),
@@ -366,9 +367,41 @@ class RemoteScreen extends ConsumerWidget {
     );
   }
 
-  void _onKeyPressed(IRKey key) {
-    // TODO: Transmit IR signal via Flipper Zero / other hardware
-    debugPrint('IR key pressed: ${key.name}');
+  void _onKeyPressed(BuildContext context, IRKey key) {
+    IrTransmitter.transmit(key).then((success) {
+      if (!context.mounted) return;
+      if (success) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('${key.displayLabel} sent'),
+            duration: const Duration(milliseconds: 600),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      } else {
+        _showNoIrDialog(context);
+      }
+    });
+  }
+
+  void _showNoIrDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        icon: const Icon(Icons.settings_remote_outlined, size: 48),
+        title: const Text('No IR emitter'),
+        content: const Text(
+          'This device does not have an infrared blaster, or '
+          'the IR signal could not be sent.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _shareIrFile(
@@ -382,29 +415,139 @@ class RemoteScreen extends ConsumerWidget {
   }
 
   /// Map an IR key name to a Material icon where possible.
+  static const Map<String, IconData> _keyIcons = {
+    // ── Power ──
+    'KEY_POWER': Icons.power_settings_new,
+    'KEY_POWER_ON': Icons.power_settings_new,
+    'KEY_POWER_OFF': Icons.power_off,
+    'KEY_POWER_TOGGLE': Icons.power_settings_new,
+
+    // ── Mute ──
+    'KEY_MUTE': Icons.volume_off,
+
+    // ── Volume ──
+    'KEY_VOLUMEUP': Icons.volume_up,
+    'KEY_VOLUMEUP_UP': Icons.volume_up,
+    'KEY_VOLUMEDOWN': Icons.volume_down,
+    'KEY_VOLUMEDOWN_DOWN': Icons.volume_down,
+
+    // ── Channel ──
+    'KEY_CHANNELUP': Icons.add_circle_outline,
+    'KEY_CHANNELUP_UP': Icons.add_circle_outline,
+    'KEY_CHANNELDOWN': Icons.remove_circle_outline,
+    'KEY_CHANNELDOWN_DOWN': Icons.remove_circle_outline,
+
+    // ── Directional ──
+    'KEY_UP': Icons.keyboard_arrow_up,
+    'KEY_DOWN': Icons.keyboard_arrow_down,
+    'KEY_LEFT': Icons.keyboard_arrow_left,
+    'KEY_RIGHT': Icons.keyboard_arrow_right,
+    'KEY_OK': Icons.check_circle_outline,
+
+    // ── Menu / Navigation ──
+    'KEY_HOME': Icons.home,
+    'KEY_MENU': Icons.menu,
+    'KEY_BACK': Icons.arrow_back,
+    'KEY_EXIT': Icons.close,
+    'KEY_INFO': Icons.info_outline,
+    'KEY_SETUP': Icons.tune,
+    'KEY_GUIDE': Icons.live_tv,
+    'KEY_HELP': Icons.help_outline,
+
+    // ── Input / Source ──
+    'KEY_INPUT': Icons.input,
+    'KEY_SOURCE': Icons.input,
+    'KEY_HDMI': Icons.cable,
+    'KEY_HDMI1': Icons.cable,
+    'KEY_HDMI2': Icons.cable,
+    'KEY_HDMI3': Icons.cable,
+    'KEY_AV': Icons.videocam,
+    'KEY_TV': Icons.tv,
+    'KEY_RADIO': Icons.radio,
+    'KEY_VGA': Icons.computer,
+    'KEY_DVI': Icons.computer,
+    'KEY_COMPONENT': Icons.videocam,
+
+    // ── Media Transport ──
+    'KEY_PLAY': Icons.play_arrow,
+    'KEY_PAUSE': Icons.pause,
+    'KEY_STOP': Icons.stop,
+    'KEY_REWIND': Icons.fast_rewind,
+    'KEY_FASTFORWARD': Icons.fast_forward,
+    'KEY_NEXT': Icons.skip_next,
+    'KEY_PREVIOUS': Icons.skip_previous,
+    'KEY_RECORD': Icons.radio_button_checked,
+    'KEY_PLAY_PAUSE': Icons.pause_circle,
+    'KEY_SLOW': Icons.slow_motion_video,
+    'KEY_REPEAT': Icons.repeat,
+    'KEY_SHUFFLE': Icons.shuffle,
+    'KEY_SUBTITLE': Icons.subtitles,
+    'KEY_AUDIO': Icons.audiotrack,
+    'KEY_LANGUAGE': Icons.language,
+
+    // ── Color buttons ──
+    'KEY_RED': Icons.lens,
+    'KEY_GREEN': Icons.lens,
+    'KEY_YELLOW': Icons.lens,
+    'KEY_BLUE': Icons.lens,
+
+    // ── Brightness / Picture ──
+    'KEY_BRIGHTNESS_UP': Icons.brightness_high,
+    'KEY_BRIGHTNESS_DOWN': Icons.brightness_low,
+    'KEY_DIMMER': Icons.brightness_low,
+    'KEY_PICTURE': Icons.image,
+    'KEY_ASPECT': Icons.aspect_ratio,
+    'KEY_CONTRAST': Icons.contrast,
+    'KEY_SLEEP': Icons.bedtime,
+    'KEY_MODE': Icons.swap_horiz,
+
+    // ── Teletext ──
+    'KEY_TEXT': Icons.text_fields,
+    'KEY_TELETEXT': Icons.text_fields,
+
+    // ── Recording ──
+    'KEY_EJECT': Icons.eject,
+    'KEY_OPEN': Icons.open_in_new,
+
+    // ── Zoom ──
+    'KEY_ZOOM': Icons.zoom_in,
+    'KEY_ZOOM_IN': Icons.zoom_in,
+    'KEY_ZOOM_OUT': Icons.zoom_out,
+
+    // ── Misc ──
+    'KEY_SELECT': Icons.check_circle,
+    'KEY_ENTER': Icons.keyboard_return,
+    'KEY_CLEAR': Icons.backspace,
+    'KEY_DELETE': Icons.delete,
+    'KEY_MEDIA': Icons.library_music,
+    'KEY_SOUND': Icons.volume_up,
+    'KEY_TUNER': Icons.radio,
+    'KEY_BASS': Icons.music_note,
+    'KEY_TREBLE': Icons.music_note,
+    'KEY_GOTO': Icons.gps_fixed,
+    'KEY_SEARCH': Icons.search,
+    'KEY_FAVORITES': Icons.favorite,
+    'KEY_WIDE': Icons.wide,
+    'KEY_SURROUND': Icons.surround_sound,
+    'KEY_MONITOR': Icons.monitor,
+  };
+
   static IconData? _iconForKey(IRKey key) {
-    switch (key.name.toUpperCase()) {
-      case 'KEY_POWER':
-        return Icons.power_settings_new;
-      case 'KEY_MUTE':
-        return Icons.volume_off;
-      case 'KEY_HOME':
-        return Icons.home;
-      case 'KEY_MENU':
-        return Icons.menu;
-      case 'KEY_BACK':
-        return Icons.arrow_back;
-      case 'KEY_EXIT':
-        return Icons.close;
-      case 'KEY_INFO':
-        return Icons.info_outline;
-      case 'KEY_SETUP':
-        return Icons.tune;
-      case 'KEY_GUIDE':
-        return Icons.live_tv;
-      default:
-        return null;
+    // Direct match first
+    final icon = _keyIcons[key.name.toUpperCase()];
+    if (icon != null) return icon;
+
+    // Fallback: check if name starts with KEY_ followed by a digit → numeric
+    final upper = key.name.toUpperCase();
+    if (upper.startsWith('KEY_') &&
+        upper.length == 6 &&
+        upper.codeUnitAt(4) >= 48 &&
+        upper.codeUnitAt(4) <= 57) {
+      // Numeric keys — show as text via displayLabel, no icon
+      return null;
     }
+
+    return null;
   }
 
   static String _numberLabel(IRKey key) {

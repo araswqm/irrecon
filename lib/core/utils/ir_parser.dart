@@ -31,6 +31,9 @@ class IRParser {
     String? protocol;
     String? address;
     String? command;
+    int? frequency;
+    double? dutyCycle;
+    String? data;
 
     void flush() {
       if (name != null && name!.isNotEmpty) {
@@ -40,12 +43,18 @@ class IRParser {
           protocol: protocol,
           address: address,
           command: command,
+          frequency: frequency,
+          dutyCycle: dutyCycle,
+          data: data,
         ));
         name = null;
         type = 'parsed';
         protocol = null;
         address = null;
         command = null;
+        frequency = null;
+        dutyCycle = null;
+        data = null;
       }
     }
 
@@ -87,6 +96,12 @@ class IRParser {
             address = value;
           case 'command':
             command = value;
+          case 'frequency':
+            frequency = int.tryParse(value);
+          case 'duty_cycle':
+            dutyCycle = double.tryParse(value);
+          case 'data':
+            data = value;
         }
       }
     }
@@ -112,6 +127,9 @@ class IRParser {
       if (key.protocol != null) buffer.writeln('protocol: ${key.protocol}');
       if (key.address != null) buffer.writeln('address: ${key.address}');
       if (key.command != null) buffer.writeln('command: ${key.command}');
+      if (key.frequency != null) buffer.writeln('frequency: ${key.frequency}');
+      if (key.dutyCycle != null) buffer.writeln('duty_cycle: ${key.dutyCycle}');
+      if (key.data != null) buffer.writeln('data: ${key.data}');
       if (i < keys.length - 1) buffer.writeln('---');
       buffer.writeln('');
     }

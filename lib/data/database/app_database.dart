@@ -42,7 +42,7 @@ class AppDatabase {
   Database? _database;
 
   static const String _dbName = 'irrecon.db';
-  static const int _dbVersion = 1;
+  static const int _dbVersion = 2;
 
   // ── Table Names ──
   static const String tableDeviceTypes = 'device_types';
@@ -106,6 +106,9 @@ class AppDatabase {
         protocol TEXT,
         address TEXT,
         command TEXT,
+        frequency INTEGER,
+        duty_cycle REAL,
+        data TEXT,
         model_id INTEGER NOT NULL,
         FOREIGN KEY (model_id) REFERENCES $tableModels(id)
       )
@@ -130,7 +133,14 @@ class AppDatabase {
   }
 
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
-    // Future migrations go here
+    if (oldVersion < 2) {
+      await db.execute(
+          'ALTER TABLE $tableKeys ADD COLUMN frequency INTEGER');
+      await db.execute(
+          'ALTER TABLE $tableKeys ADD COLUMN duty_cycle REAL');
+      await db.execute(
+          'ALTER TABLE $tableKeys ADD COLUMN data TEXT');
+    }
   }
 
   // ── Device Types ──
