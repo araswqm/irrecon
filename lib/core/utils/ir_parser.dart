@@ -1,4 +1,4 @@
-import '../models/ir_key.dart';
+import '../../data/models/ir_key.dart';
 
 /// Parses Flipper Zero .ir file format content into a list of IRKey.
 ///

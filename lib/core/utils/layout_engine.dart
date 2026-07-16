@@ -1,6 +1,4 @@
-import 'package:flutter/material.dart';
-import '../models/ir_key.dart';
-import '../constants.dart';
+import '../../data/models/ir_key.dart';
 
 /// Position and size of a button on the remote control grid.
 class ButtonLayout {

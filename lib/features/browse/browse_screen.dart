@@ -103,7 +103,7 @@ class BrowseScreen extends ConsumerWidget {
                         child: ListTile(
                           leading: CircleAvatar(
                             backgroundColor: theme.colorScheme.primaryContainer,
-                            child: Icon(Icons.remote_control_rounded,
+                            child: Icon(Icons.settings_remote,
                                 color: theme.colorScheme.onPrimaryContainer),
                           ),
                           title: Text(model.name),

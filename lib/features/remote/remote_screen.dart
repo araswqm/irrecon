@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../core/utils/ir_parser.dart';
 import '../../core/utils/layout_engine.dart';
@@ -59,7 +58,7 @@ class RemoteScreen extends ConsumerWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.remote_control_off_rounded,
+          Icon(Icons.settings_remote,
               size: 80, color: theme.colorScheme.onSurfaceVariant),
           const SizedBox(height: 16),
           Text(message, style: theme.textTheme.bodyLarge),
@@ -204,8 +203,11 @@ class RemoteScreen extends ConsumerWidget {
           HapticFeedback.lightImpact();
           _onKeyPressed(key);
         },
-        child: icon ??
-            FittedBox(
+        child: icon != null
+            ? Icon(icon, size: 24, color: isPower
+                ? theme.colorScheme.onError
+                : theme.colorScheme.onPrimaryContainer)
+            : FittedBox(
               fit: BoxFit.scaleDown,
               child: Text(
                 key.displayLabel,
@@ -374,9 +376,7 @@ class RemoteScreen extends ConsumerWidget {
     keysAsync.whenData((keys) {
       if (keys.isNotEmpty) {
         final content = IRParser.serialize(keys);
-        SharePlus.instance.share(
-          ShareParams(text: content, subject: 'IRrecon - Remote File'),
-        );
+        Share.share(content, subject: 'IRrecon - Remote File');
       }
     });
   }

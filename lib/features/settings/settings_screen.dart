@@ -219,7 +219,6 @@ class SettingsScreen extends ConsumerWidget {
                                 : Icons.visibility,
                           ),
                           onPressed: () {
-                            final current = ref.read(_obscuredProvider);
                             if (isObscured) {
                               ref
                                   .read(_obscuredProvider.notifier)

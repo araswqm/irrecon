@@ -24,7 +24,7 @@ class HomeScreen extends StatelessWidget {
           children: [
             const SizedBox(height: 40),
             Icon(
-              Icons.remote_control_rounded,
+              Icons.settings_remote,
               size: 80,
               color: theme.colorScheme.primary,
             ),
