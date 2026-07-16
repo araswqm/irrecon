@@ -1,0 +1,34 @@
+name: irrecon
+description: AI-powered Flipper IRDB remote control finder.
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.2.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_riverpod: ^2.5.1
+  go_router: ^14.2.0
+  dynamic_color: ^1.7.0
+  google_fonts: ^6.2.0
+  sqflite: ^2.3.3
+  path_provider: ^2.1.3
+  flutter_secure_storage: ^9.2.2
+  dio: ^5.4.3
+  image_picker: ^1.1.1
+  image: ^4.2.0
+  share_plus: ^9.0.0
+  fuzzy: ^0.3.0
+  http_parser: ^4.0.2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.2
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/irdb_index/
