@@ -4,6 +4,34 @@ import '../models/device_type.dart';
 import '../models/brand.dart';
 import '../models/ir_model.dart';
 import '../models/ir_key.dart';
+import '../../core/utils/fuzzy_matcher.dart';
+import '../../core/constants.dart';
+
+/// A brand search result with fuzzy score and device type context.
+class BrandSearchHit {
+  final IRBrand brand;
+  final String deviceTypeName;
+  final double score;
+  const BrandSearchHit({
+    required this.brand,
+    required this.deviceTypeName,
+    required this.score,
+  });
+}
+
+/// A model search result with fuzzy score and parent context.
+class ModelSearchHit {
+  final IRModel model;
+  final String brandName;
+  final String deviceTypeName;
+  final double score;
+  const ModelSearchHit({
+    required this.model,
+    required this.brandName,
+    required this.deviceTypeName,
+    required this.score,
+  });
+}
 
 /// Singleton SQLite database manager for the IRDB index.
 class AppDatabase {
@@ -162,6 +190,64 @@ class AppDatabase {
       limit: 20,
     );
     return maps.map((m) => IRModel.fromMap(m)).toList();
+  }
+
+  /// Levenshtein-based fuzzy brand search with device type context.
+  ///
+  /// Scores all brands against [query] using [FuzzyMatcher.similarityIgnoreCase].
+  /// Returns matches above [matchThreshold] (0.6), sorted by score descending.
+  /// Includes the device type name so the UI can disambiguate (e.g. Samsung/TV vs Samsung/AC).
+  Future<List<BrandSearchHit>> fuzzySearchBrands(String query) async {
+    final db = await database;
+    final allBrands = await db.query(tableBrands, orderBy: 'normalized_name ASC');
+    final dtMaps = await db.query(tableDeviceTypes);
+    final dtNames = {for (final m in dtMaps) m['id'] as int: m['name'] as String};
+
+    final threshold = AppConstants.matchThreshold;
+    final results = <BrandSearchHit>[];
+    for (final map in allBrands) {
+      final brand = IRBrand.fromMap(map);
+      final score = FuzzyMatcher.similarityIgnoreCase(query, brand.normalizedName);
+      if (score >= threshold) {
+        results.add(BrandSearchHit(
+          brand: brand,
+          deviceTypeName: dtNames[brand.deviceTypeId] ?? 'Unknown',
+          score: score,
+        ));
+      }
+    }
+
+    results.sort((a, b) => b.score.compareTo(a.score));
+    return results.take(50).toList();
+  }
+
+  /// Levenshtein-based fuzzy model search with brand and device type context.
+  Future<List<ModelSearchHit>> fuzzySearchModels(String query) async {
+    final db = await database;
+    final allModels = await db.query(tableModels, orderBy: 'name ASC');
+    final brandMaps = await db.query(tableBrands);
+    final brands = {for (final m in brandMaps) m['id'] as int: IRBrand.fromMap(m)};
+    final dtMaps = await db.query(tableDeviceTypes);
+    final dtNames = {for (final m in dtMaps) m['id'] as int: m['name'] as String};
+
+    final threshold = AppConstants.matchThreshold;
+    final results = <ModelSearchHit>[];
+    for (final map in allModels) {
+      final model = IRModel.fromMap(map);
+      final score = FuzzyMatcher.similarityIgnoreCase(query, model.name);
+      if (score >= threshold) {
+        final brand = brands[model.brandId];
+        results.add(ModelSearchHit(
+          model: model,
+          brandName: brand?.name ?? 'Unknown',
+          deviceTypeName: brand != null ? dtNames[brand.deviceTypeId] ?? 'Unknown' : 'Unknown',
+          score: score,
+        ));
+      }
+    }
+
+    results.sort((a, b) => b.score.compareTo(a.score));
+    return results.take(50).toList();
   }
 
   Future<IRModel?> getModelById(int id) async {

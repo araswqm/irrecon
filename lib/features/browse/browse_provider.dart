@@ -63,7 +63,17 @@ class BrowseNotifier extends StateNotifier<BrowseState> {
   Future<void> _loadDeviceTypes() async {
     try {
       final types = await _db.getDeviceTypes();
-      state = state.copyWith(deviceTypes: types);
+      var newState = state.copyWith(deviceTypes: types);
+      // Validate previously selected device type still exists (DB may have been re-indexed)
+      if (state.selectedDeviceTypeId != null &&
+          !types.any((dt) => dt.id == state.selectedDeviceTypeId)) {
+        newState = newState.copyWith(
+          selectedDeviceTypeId: null,
+          clearBrands: true,
+          clearModels: true,
+        );
+      }
+      state = newState;
     } catch (e) {
       state = state.copyWith(error: e.toString());
     }
@@ -72,6 +82,8 @@ class BrowseNotifier extends StateNotifier<BrowseState> {
   Future<void> selectDeviceType(int deviceTypeId) async {
     state = state.copyWith(
       selectedDeviceTypeId: deviceTypeId,
+      selectedBrandId: null,
+      selectedModelId: null,
       isLoading: true,
       clearBrands: true,
       clearModels: true,
@@ -88,6 +100,7 @@ class BrowseNotifier extends StateNotifier<BrowseState> {
   Future<void> selectBrand(int brandId) async {
     state = state.copyWith(
       selectedBrandId: brandId,
+      selectedModelId: null,
       isLoading: true,
       clearModels: true,
     );
@@ -105,6 +118,12 @@ class BrowseNotifier extends StateNotifier<BrowseState> {
   }
 
   void reset() {
+    state = const BrowseState();
+    _loadDeviceTypes();
+  }
+
+  /// Force a complete reload from the database (e.g. after DB re-index).
+  void refresh() {
     state = const BrowseState();
     _loadDeviceTypes();
   }

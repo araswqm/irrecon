@@ -15,6 +15,11 @@ class BrowseScreen extends ConsumerWidget {
       appBar: AppBar(
         title: const Text('Browse IR Database'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.search),
+            tooltip: 'Search brands / models',
+            onPressed: () => context.push('/search'),
+          ),
           if (state.selectedDeviceTypeId != null)
             IconButton(
               icon: const Icon(Icons.refresh),
@@ -164,7 +169,9 @@ class _DropdownSection extends StatelessWidget {
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
         child: DropdownButtonFormField<int>(
-          value: value,
+          value: value != null && items.any((item) => item.id == value)
+              ? value
+              : null,
           decoration: InputDecoration(
             labelText: label,
             prefixIcon: Icon(icon),

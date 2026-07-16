@@ -13,6 +13,11 @@ class HomeScreen extends StatelessWidget {
         title: const Text('IRrecon'),
         actions: [
           IconButton(
+            icon: const Icon(Icons.search),
+            tooltip: 'Search brands / models',
+            onPressed: () => context.push('/search'),
+          ),
+          IconButton(
             icon: const Icon(Icons.settings),
             onPressed: () => context.push('/settings'),
           ),

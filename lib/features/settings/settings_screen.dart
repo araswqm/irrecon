@@ -664,10 +664,32 @@ class SettingsScreen extends ConsumerWidget {
 
       // ── Step 3: Walk the tree and collect .ir files ──
       final rootDir = Directory(extractDir.path);
+      final rootPath = rootDir.path.replaceAll('\\', '/');
+
+      // Discover device type directories (top-level dirs under root).
+      // Skip _Converted_ (6944 files in CSV/Pronto/IR_Plus format, wrong structure),
+      // .git, .github, and any other non-device-type dirs.
+      final deviceTypeNames = <String>{};
+      await for (final entity in rootDir.list(recursive: false)) {
+        if (entity is Directory) {
+          final dirName = entity.path.replaceAll('\\', '/').split('/').last;
+          if (dirName.startsWith('_') || dirName.startsWith('.')) continue;
+          deviceTypeNames.add(dirName);
+        }
+      }
+
+      if (deviceTypeNames.isEmpty) {
+        throw Exception('No device type directories found in the archive');
+      }
+
+      // Collect .ir files, excluding any under _Converted_ or similar dirs
       final allIrFiles = <File>[];
       await for (final entity in rootDir.list(recursive: true)) {
         if (entity is File && entity.path.endsWith('.ir')) {
-          allIrFiles.add(entity);
+          final path = entity.path.replaceAll('\\', '/');
+          // Skip files not under a known device type dir
+          final belongs = deviceTypeNames.any((dt) => path.contains('/$dt/'));
+          if (belongs) allIrFiles.add(entity);
         }
       }
 
@@ -675,7 +697,7 @@ class SettingsScreen extends ConsumerWidget {
         throw Exception('No .ir files found in the downloaded archive');
       }
 
-      status.state = 'Indexing ${allIrFiles.length} IR files...';
+      status.state = 'Indexing ${allIrFiles.length} IR files across ${deviceTypeNames.length} device types...';
 
       // ── Step 4: Parse & classify ──
       final Map<String, int> deviceTypeIds = {};
@@ -693,18 +715,31 @@ class SettingsScreen extends ConsumerWidget {
 
       for (var i = 0; i < allIrFiles.length; i++) {
         final file = allIrFiles[i];
-        final parts = file.path.replaceAll('\\', '/').split('/');
+        final path = file.path.replaceAll('\\', '/');
+        final parts = path.split('/');
 
-        // Flipper-IRDB structure: .../{device_type}/{brand}/{model}.ir
-        // Or: .../Flipper-IRDB-main/{device_type}/{brand}/{model}.ir
-        final dtIdx = parts.indexOf('Flipper-IRDB-main');
-        final startIdx = dtIdx >= 0 ? dtIdx + 1 : parts.length - 3;
+        // Find which known device type this file belongs to.
+        // Structure: .../{device_type}/{brand}[/{subfolder}]/{model}.ir
+        // Brand is always the first dir after device type; model from file name.
+        String? deviceTypeName;
+        int dtPartIdx = -1;
+        for (final dt in deviceTypeNames) {
+          final idx = parts.indexOf(dt);
+          if (idx >= 0) {
+            deviceTypeName = dt;
+            dtPartIdx = idx;
+            break;
+          }
+        }
+        if (deviceTypeName == null || dtPartIdx < 0) continue;
 
-        if (startIdx < 0 || startIdx + 2 >= parts.length) continue;
+        final brandPartIdx = dtPartIdx + 1;
+        if (brandPartIdx >= parts.length) continue;
+        final brandName = parts[brandPartIdx];
 
-        final deviceTypeName = parts[startIdx];
-        final brandName = parts[startIdx + 1];
-        final modelName = parts[startIdx + 2].replaceAll('.ir', '');
+        // Model name from the file name (most specific identifier)
+        final fileName = parts.last;
+        final modelName = fileName.replaceAll('.ir', '');
 
         final modelKey = '$deviceTypeName/$brandName/$modelName';
         if (processedModels.contains(modelKey)) continue;
@@ -752,7 +787,7 @@ class SettingsScreen extends ConsumerWidget {
             id: mId,
             name: modelName,
             brandId: bId,
-            fileName: file.path.split('/').last,
+            fileName: fileName,
             fileUrl: null,
           ));
 
