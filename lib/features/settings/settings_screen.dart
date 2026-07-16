@@ -579,7 +579,7 @@ class SettingsScreen extends ConsumerWidget {
                           children: [
                             Icon(Icons.inbox_rounded,
                                 size: 48,
-                                color: Theme.of(ctx).colorScheme.onSurfaceVariant.withValues(alpha: 0.4)),
+                                color: Theme.of(ctx).colorScheme.onSurfaceVariant.withOpacity(0.4)),
                             const SizedBox(height: 8),
                             Text(
                               'No IR transmissions logged yet.\nTry pressing a button on a remote screen.',
@@ -690,13 +690,6 @@ class SettingsScreen extends ConsumerWidget {
       key: AppConstants.keySelectedProvider,
       value: provider.storedName,
     );
-  }
-
-  Future<void> _saveKey(String key, String value) async {
-    if (value.isNotEmpty) {
-      final storage = const FlutterSecureStorage();
-      await storage.write(key: key, value: value);
-    }
   }
 
   Widget _buildDatabaseCard(BuildContext context, WidgetRef ref) {
@@ -1102,7 +1095,6 @@ class ApiKeyField extends StatefulWidget {
 
 class _ApiKeyFieldState extends State<ApiKeyField> {
   final _controller = TextEditingController();
-  bool _loaded = false;
 
   @override
   void initState() {
@@ -1116,7 +1108,7 @@ class _ApiKeyFieldState extends State<ApiKeyField> {
     if (saved != null && saved.isNotEmpty) {
       _controller.text = saved;
     }
-    if (mounted) setState(() => _loaded = true);
+    if (mounted) setState(() {});
   }
 
   @override

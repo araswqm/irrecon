@@ -23,7 +23,8 @@ class IrTransmitter {
   /// reports no emitter.
   static Future<bool> get isAvailable async {
     try {
-      return (await _channel.invokeMethod<bool>('isAvailable')) ?? false;
+      final available = (await _channel.invokeMethod<bool>('isAvailable')) ?? false;
+      return available;
     } catch (_) {
       return false;
     }
@@ -54,11 +55,13 @@ class IrTransmitter {
 
         if (pattern.isEmpty) {
           debugPrint('IrTransmitter: raw signal has empty pattern (name=${key.name})');
+          IrLogger().log('RAW_SKIP name=${key.name} reason=empty_pattern');
           return false;
         }
 
         debugPrint('IrTransmitter: sending raw signal '
             'name=${key.name} freq=${key.frequency} pattern_len=${pattern.length}');
+        IrLogger().log('RAW_SEND name=${key.name} freq=${key.frequency} len=${pattern.length}');
         return await _channel.invokeMethod<bool>('transmit', <String, dynamic>{
           'frequency': key.frequency,
           'pattern': pattern,
@@ -69,6 +72,7 @@ class IrTransmitter {
       if (key.protocol != null && key.address != null && key.command != null) {
         debugPrint('IrTransmitter: decoding parsed signal '
             'name=${key.name} proto=${key.protocol} addr=${key.address} cmd=${key.command}');
+        IrLogger().log('PARSED_DECODE name=${key.name} proto=${key.protocol} addr=${key.address} cmd=${key.command}');
         final decoded = IRProtocolDecoder.decode(
           protocol: key.protocol!,
           address: key.address!,
@@ -78,11 +82,13 @@ class IrTransmitter {
         if (decoded == null) {
           debugPrint('IrTransmitter: decoder returned null for '
               'proto=${key.protocol} addr=${key.address} cmd=${key.command}');
+          IrLogger().log('PARSED_DECODE_FAIL proto=${key.protocol} addr=${key.address} cmd=${key.command}');
           return false;
         }
 
         debugPrint('IrTransmitter: sending decoded signal '
             'freq=${decoded.frequency} timing_len=${decoded.timing.length}');
+        IrLogger().log('PARSED_SEND name=${key.name} freq=${decoded.frequency} len=${decoded.timing.length}');
         return await _channel.invokeMethod<bool>('transmit', <String, dynamic>{
           'frequency': decoded.frequency,
           'pattern': decoded.timing,
@@ -92,12 +98,15 @@ class IrTransmitter {
       debugPrint('IrTransmitter: cannot transmit — no valid signal path '
           'type=${key.type} freq=${key.frequency} data=${key.data?.substring(0, 20)} '
           'proto=${key.protocol} addr=${key.address} cmd=${key.command}');
+      IrLogger().log('NO_VALID_PATH type=${key.type} proto=${key.protocol} cmd=${key.command}');
       return false;
     } on MissingPluginException {
+      IrLogger().log('MISSING_PLUGIN');
       return false;
     } catch (e) {
       // Log but don't crash — IR is best‑effort
       debugPrint('IrTransmitter error: $e');
+      IrLogger().log('ERROR $e');
       return false;
     }
   }
