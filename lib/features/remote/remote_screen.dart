@@ -187,16 +187,24 @@ class RemoteScreen extends ConsumerWidget {
     IRKey key, {
     bool isPower = false,
   }) {
-    final color = isPower
-        ? theme.colorScheme.error
-        : theme.colorScheme.primaryContainer;
+    final isColor = _isColorKey(key);
+    final bgColor = isColor
+        ? _colorForButton(key).withOpacity(0.2)
+        : isPower
+            ? theme.colorScheme.error
+            : theme.colorScheme.primaryContainer;
+    final fgColor = isColor
+        ? _colorForButton(key)
+        : isPower
+            ? theme.colorScheme.onError
+            : theme.colorScheme.onPrimaryContainer;
     final icon = _iconForKey(key);
 
     return SizedBox(
       width: AppConstants.buttonSize,
       height: AppConstants.buttonSize,
       child: RawMaterialButton(
-        fillColor: color,
+        fillColor: bgColor,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
         ),
@@ -205,9 +213,7 @@ class RemoteScreen extends ConsumerWidget {
           _onKeyPressed(context, key);
         },
         child: icon != null
-            ? Icon(icon, size: 24, color: isPower
-                ? theme.colorScheme.onError
-                : theme.colorScheme.onPrimaryContainer)
+            ? Icon(icon, size: 24, color: fgColor)
             : FittedBox(
               fit: BoxFit.scaleDown,
               child: Text(
@@ -215,15 +221,30 @@ class RemoteScreen extends ConsumerWidget {
                 style: TextStyle(
                   fontSize: 10,
                   fontWeight: FontWeight.w600,
-                  color: isPower
-                      ? theme.colorScheme.onError
-                      : theme.colorScheme.onPrimaryContainer,
+                  color: fgColor,
                 ),
                 textAlign: TextAlign.center,
               ),
             ),
       ),
     );
+  }
+
+  static bool _isColorKey(IRKey key) {
+    final n = key.name;
+    return n == 'Red' || n == 'KEY_RED' ||
+           n == 'Green' || n == 'KEY_GREEN' ||
+           n == 'Yellow' || n == 'KEY_YELLOW' ||
+           n == 'Blue' || n == 'KEY_BLUE';
+  }
+
+  static Color _colorForButton(IRKey key) {
+    final n = key.name;
+    if (n == 'Red' || n == 'KEY_RED') return Colors.red;
+    if (n == 'Green' || n == 'KEY_GREEN') return Colors.green;
+    if (n == 'Yellow' || n == 'KEY_YELLOW') return Colors.amber;
+    if (n == 'Blue' || n == 'KEY_BLUE') return Colors.blue;
+    return Colors.grey;
   }
 
   Widget _buildRocker(
@@ -264,11 +285,16 @@ class RemoteScreen extends ConsumerWidget {
     List<PositionedKey> keys,
   ) {
     // Build a cross-shaped D-Pad
-    final up = keys.where((k) => k.key.name.toUpperCase() == 'KEY_UP');
-    final down = keys.where((k) => k.key.name.toUpperCase() == 'KEY_DOWN');
-    final left = keys.where((k) => k.key.name.toUpperCase() == 'KEY_LEFT');
-    final right = keys.where((k) => k.key.name.toUpperCase() == 'KEY_RIGHT');
-    final ok = keys.where((k) => k.key.name.toUpperCase() == 'KEY_OK');
+    bool isDir(IRKey k, String dir) {
+      final n = k.name;
+      return n == dir || n == 'KEY_$dir';
+    }
+
+    final up = keys.where((k) => isDir(k.key, 'Up'));
+    final down = keys.where((k) => isDir(k.key, 'Down'));
+    final left = keys.where((k) => isDir(k.key, 'Left'));
+    final right = keys.where((k) => isDir(k.key, 'Right'));
+    final ok = keys.where((k) => isDir(k.key, 'OK') || isDir(k.key, 'Select'));
 
     return Column(
       children: [
@@ -415,12 +441,17 @@ class RemoteScreen extends ConsumerWidget {
   }
 
   /// Map an IR key name to a Material icon where possible.
+  ///
+  /// Lookup is **case‑sensitive** — names are stored either as
+  /// human‑readable (`"Power"`, `"Vol Up"`) or `KEY_`‑prefixed
+  /// (`"KEY_POWER"`, `"KEY_VOLUMEUP"`).  `_iconForKey` tries both forms.
   static const Map<String, IconData> _keyIcons = {
     // ── Power ──
     'KEY_POWER': Icons.power_settings_new,
     'KEY_POWER_ON': Icons.power_settings_new,
     'KEY_POWER_OFF': Icons.power_off,
     'KEY_POWER_TOGGLE': Icons.power_settings_new,
+    'Power': Icons.power_settings_new,
 
     // ── Mute ──
     'KEY_MUTE': Icons.volume_off,
@@ -448,6 +479,7 @@ class RemoteScreen extends ConsumerWidget {
     'KEY_HOME': Icons.home,
     'KEY_MENU': Icons.menu,
     'KEY_BACK': Icons.arrow_back,
+    'KEY_RETURN': Icons.arrow_back,
     'KEY_EXIT': Icons.close,
     'KEY_INFO': Icons.info_outline,
     'KEY_SETUP': Icons.tune,
@@ -486,10 +518,10 @@ class RemoteScreen extends ConsumerWidget {
     'KEY_LANGUAGE': Icons.language,
 
     // ── Color buttons ──
-    'KEY_RED': Icons.lens,
-    'KEY_GREEN': Icons.lens,
-    'KEY_YELLOW': Icons.lens,
-    'KEY_BLUE': Icons.lens,
+    'KEY_RED': Icons.circle,
+    'KEY_GREEN': Icons.circle,
+    'KEY_YELLOW': Icons.circle,
+    'KEY_BLUE': Icons.circle,
 
     // ── Brightness / Picture ──
     'KEY_BRIGHTNESS_UP': Icons.brightness_high,
@@ -532,18 +564,30 @@ class RemoteScreen extends ConsumerWidget {
     'KEY_MONITOR': Icons.monitor,
   };
 
+  /// Look up the icon for [key].
+  ///
+  /// Tries the raw name first, then the `KEY_`‑prefixed variant (and vice‑versa)
+  /// so both `"Power"` and `"KEY_POWER"` resolve.  No case conversion.
   static IconData? _iconForKey(IRKey key) {
-    // Direct match first
-    final icon = _keyIcons[key.name.toUpperCase()];
+    final name = key.name;
+
+    // Direct match
+    var icon = _keyIcons[name];
     if (icon != null) return icon;
 
-    // Fallback: check if name starts with KEY_ followed by a digit → numeric
-    final upper = key.name.toUpperCase();
-    if (upper.startsWith('KEY_') &&
-        upper.length == 6 &&
-        upper.codeUnitAt(4) >= 48 &&
-        upper.codeUnitAt(4) <= 57) {
-      // Numeric keys — show as text via displayLabel, no icon
+    // Try KEY_ prefix (handle both original casing and IRDB's all-uppercase)
+    if (name.startsWith('KEY_')) {
+      icon = _keyIcons[name.substring(4)]; // e.g. "KEY_Power" → "Power"
+    } else {
+      icon = _keyIcons['KEY_$name'];       // e.g. "Power" → "KEY_Power" (won't match "KEY_POWER")
+      if (icon == null) {
+        icon = _keyIcons['KEY_${name.toUpperCase()}']; // "Power" → "KEY_POWER" ✓
+      }
+    }
+    if (icon != null) return icon;
+
+    // Numeric fallback
+    if (name.length == 1 && name.codeUnitAt(0) >= 48 && name.codeUnitAt(0) <= 57) {
       return null;
     }
 
@@ -551,17 +595,17 @@ class RemoteScreen extends ConsumerWidget {
   }
 
   static String _numberLabel(IRKey key) {
-    final upper = key.name.toUpperCase();
-    if (upper == 'KEY_0') return '0';
-    if (upper == 'KEY_1') return '1';
-    if (upper == 'KEY_2') return '2';
-    if (upper == 'KEY_3') return '3';
-    if (upper == 'KEY_4') return '4';
-    if (upper == 'KEY_5') return '5';
-    if (upper == 'KEY_6') return '6';
-    if (upper == 'KEY_7') return '7';
-    if (upper == 'KEY_8') return '8';
-    if (upper == 'KEY_9') return '9';
+    final n = key.name;
+    if (n == 'KEY_0' || n == '0') return '0';
+    if (n == 'KEY_1' || n == '1') return '1';
+    if (n == 'KEY_2' || n == '2') return '2';
+    if (n == 'KEY_3' || n == '3') return '3';
+    if (n == 'KEY_4' || n == '4') return '4';
+    if (n == 'KEY_5' || n == '5') return '5';
+    if (n == 'KEY_6' || n == '6') return '6';
+    if (n == 'KEY_7' || n == '7') return '7';
+    if (n == 'KEY_8' || n == '8') return '8';
+    if (n == 'KEY_9' || n == '9') return '9';
     return key.displayLabel;
   }
 }

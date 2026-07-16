@@ -10,6 +10,7 @@ class OpenAIProvider implements ApiEngine {
   final Dio _dio;
   final FlutterSecureStorage _storage;
   String? _cachedKey;
+  String? _cachedModel;
 
   OpenAIProvider({Dio? dio, FlutterSecureStorage? storage})
       : _dio = dio ?? Dio(),
@@ -24,6 +25,11 @@ class OpenAIProvider implements ApiEngine {
       throw Exception('OpenAI API key not configured');
     }
     return _cachedKey!;
+  }
+
+  Future<String> _getModel() async {
+    _cachedModel ??= await _storage.read(key: AppConstants.keyOpenAiModel);
+    return _cachedModel ?? 'gpt-4o';
   }
 
   @override
@@ -49,7 +55,7 @@ class OpenAIProvider implements ApiEngine {
         'Content-Type': 'application/json',
       }),
       data: {
-        'model': 'gpt-4o',
+        'model': await _getModel(),
         'messages': [
           {
             'role': 'user',

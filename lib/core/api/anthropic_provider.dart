@@ -10,6 +10,7 @@ class AnthropicProvider implements ApiEngine {
   final Dio _dio;
   final FlutterSecureStorage _storage;
   String? _cachedKey;
+  String? _cachedModel;
 
   AnthropicProvider({Dio? dio, FlutterSecureStorage? storage})
       : _dio = dio ?? Dio(),
@@ -24,6 +25,11 @@ class AnthropicProvider implements ApiEngine {
       throw Exception('Anthropic API key not configured');
     }
     return _cachedKey!;
+  }
+
+  Future<String> _getModel() async {
+    _cachedModel ??= await _storage.read(key: AppConstants.keyAnthropicModel);
+    return _cachedModel ?? 'claude-sonnet-5';
   }
 
   @override
@@ -50,7 +56,7 @@ class AnthropicProvider implements ApiEngine {
         'Content-Type': 'application/json',
       }),
       data: {
-        'model': 'claude-sonnet-5',
+        'model': await _getModel(),
         'max_tokens': 1024,
         'messages': [
           {

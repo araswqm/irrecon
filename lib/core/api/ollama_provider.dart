@@ -10,6 +10,7 @@ class OllamaProvider implements ApiEngine {
   final Dio _dio;
   final FlutterSecureStorage _storage;
   String? _cachedUrl;
+  String? _cachedModel;
 
   OllamaProvider({Dio? dio, FlutterSecureStorage? storage})
       : _dio = dio ?? Dio(),
@@ -21,6 +22,11 @@ class OllamaProvider implements ApiEngine {
   Future<String> _getUrl() async {
     _cachedUrl ??= await _storage.read(key: AppConstants.keyOllamaUrl);
     return _cachedUrl ?? 'http://localhost:11434';
+  }
+
+  Future<String> _getModel() async {
+    _cachedModel ??= await _storage.read(key: AppConstants.keyOllamaModel);
+    return _cachedModel ?? 'llava';
   }
 
   @override
@@ -46,7 +52,7 @@ class OllamaProvider implements ApiEngine {
         'Content-Type': 'application/json',
       }),
       data: {
-        'model': 'llava',
+        'model': await _getModel(),
         'prompt': prompt,
         'images': [imageBase64],
         'stream': false,

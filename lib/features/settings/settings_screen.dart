@@ -56,9 +56,13 @@ class SettingsScreen extends ConsumerWidget {
           // ── API Keys ──
           _buildSectionHeader(theme, 'API Keys'),
           _buildOpenAiKeyField(context, ref),
+          _buildOpenAiModelSelector(context),
           _buildAnthropicKeyField(context, ref),
+          _buildAnthropicModelSelector(context),
           _buildGeminiKeyField(context, ref),
+          _buildGeminiModelSelector(context),
           _buildOllamaUrlField(context, ref),
+          _buildOllamaModelField(context),
           const SizedBox(height: 8),
           _buildCustomApiFields(context, ref),
           const SizedBox(height: 24),
@@ -192,6 +196,56 @@ class SettingsScreen extends ConsumerWidget {
       icon: Icons.link_rounded,
       hint: 'http://localhost:11434',
       obscure: false,
+    );
+  }
+
+  Widget _buildOpenAiModelSelector(BuildContext context) {
+    return _buildModelDropdown(
+      context,
+      storageKey: AppConstants.keyOpenAiModel,
+      label: 'OpenAI Model',
+      options: const ['gpt-4o', 'gpt-4o-mini', 'gpt-4o-2024-08-06', 'gpt-4-turbo'],
+      defaultModel: 'gpt-4o',
+    );
+  }
+
+  Widget _buildAnthropicModelSelector(BuildContext context) {
+    return _buildModelDropdown(
+      context,
+      storageKey: AppConstants.keyAnthropicModel,
+      label: 'Anthropic Model',
+      options: const [
+        'claude-sonnet-5',
+        'claude-sonnet-4-20250514',
+        'claude-haiku-4-5-20251001',
+      ],
+      defaultModel: 'claude-sonnet-5',
+    );
+  }
+
+  Widget _buildGeminiModelSelector(BuildContext context) {
+    return _buildModelDropdown(
+      context,
+      storageKey: AppConstants.keyGeminiModel,
+      label: 'Gemini Model',
+      options: const [
+        'gemini-2.0-flash',
+        'gemini-2.0-flash-exp',
+        'gemini-1.5-pro',
+        'gemini-1.5-flash',
+        'gemini-2.0-pro-exp',
+      ],
+      defaultModel: 'gemini-2.0-flash',
+    );
+  }
+
+  Widget _buildOllamaModelField(BuildContext context) {
+    return _buildModelTextField(
+      context,
+      storageKey: AppConstants.keyOllamaModel,
+      label: 'Ollama Model',
+      hint: 'llava',
+      defaultModel: 'llava',
     );
   }
 
@@ -500,6 +554,52 @@ class SettingsScreen extends ConsumerWidget {
                 },
               );
             },
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildModelDropdown(
+    BuildContext context, {
+    required String storageKey,
+    required String label,
+    required List<String> options,
+    required String defaultModel,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Card(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+          child: ModelDropdown(
+            storageKey: storageKey,
+            label: label,
+            options: options,
+            defaultModel: defaultModel,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildModelTextField(
+    BuildContext context, {
+    required String storageKey,
+    required String label,
+    required String hint,
+    required String defaultModel,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Card(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+          child: ModelTextField(
+            storageKey: storageKey,
+            label: label,
+            hint: hint,
+            defaultModel: defaultModel,
           ),
         ),
       ),
@@ -1157,6 +1257,145 @@ class _ApiKeyFieldState extends State<ApiKeyField> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('${widget.label} saved')),
         );
+      },
+    );
+  }
+}
+
+/// A dropdown that loads a saved model name from [FlutterSecureStorage]
+/// on init and saves on selection change.
+class ModelDropdown extends StatefulWidget {
+  final String storageKey;
+  final String label;
+  final List<String> options;
+  final String defaultModel;
+
+  const ModelDropdown({
+    super.key,
+    required this.storageKey,
+    required this.label,
+    required this.options,
+    required this.defaultModel,
+  });
+
+  @override
+  State<ModelDropdown> createState() => _ModelDropdownState();
+}
+
+class _ModelDropdownState extends State<ModelDropdown> {
+  String _current = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSaved();
+  }
+
+  Future<void> _loadSaved() async {
+    final storage = const FlutterSecureStorage();
+    final saved = await storage.read(key: widget.storageKey);
+    final value = saved ?? widget.defaultModel;
+    // Ensure the saved value is one of the valid options
+    if (widget.options.contains(value)) {
+      setState(() => _current = value);
+    } else {
+      setState(() => _current = widget.defaultModel);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_current.isEmpty) {
+      return const SizedBox(
+        height: 48,
+        child: Center(child: Text('Loading...')),
+      );
+    }
+
+    return DropdownButtonFormField<String>(
+      value: _current,
+      decoration: InputDecoration(
+        labelText: widget.label,
+        prefixIcon: const Icon(Icons.model_training),
+        border: InputBorder.none,
+      ),
+      isExpanded: true,
+      items: widget.options
+          .map((m) => DropdownMenuItem(value: m, child: Text(m)))
+          .toList(),
+      onChanged: (v) {
+        if (v != null && v != _current) {
+          setState(() => _current = v);
+          const FlutterSecureStorage()
+              .write(key: widget.storageKey, value: v);
+        }
+      },
+    );
+  }
+}
+
+/// A text field that loads a saved model name from [FlutterSecureStorage]
+/// on init and auto-saves on every keystroke.
+class ModelTextField extends StatefulWidget {
+  final String storageKey;
+  final String label;
+  final String hint;
+  final String defaultModel;
+
+  const ModelTextField({
+    super.key,
+    required this.storageKey,
+    required this.label,
+    required this.hint,
+    required this.defaultModel,
+  });
+
+  @override
+  State<ModelTextField> createState() => _ModelTextFieldState();
+}
+
+class _ModelTextFieldState extends State<ModelTextField> {
+  final _controller = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSaved();
+  }
+
+  Future<void> _loadSaved() async {
+    final storage = const FlutterSecureStorage();
+    final saved = await storage.read(key: widget.storageKey);
+    if (saved != null && saved.isNotEmpty) {
+      _controller.text = saved;
+    } else {
+      _controller.text = widget.defaultModel;
+    }
+    if (mounted) setState(() {});
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return TextFormField(
+      key: ValueKey(widget.storageKey),
+      controller: _controller,
+      decoration: InputDecoration(
+        labelText: widget.label,
+        hintText: widget.hint,
+        prefixIcon: const Icon(Icons.model_training),
+        border: InputBorder.none,
+      ),
+      onChanged: (value) {
+        if (value.isNotEmpty) {
+          const FlutterSecureStorage()
+              .write(key: widget.storageKey, value: value);
+        }
       },
     );
   }

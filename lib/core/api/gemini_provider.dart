@@ -10,6 +10,7 @@ class GeminiProvider implements ApiEngine {
   final Dio _dio;
   final FlutterSecureStorage _storage;
   String? _cachedKey;
+  String? _cachedModel;
 
   GeminiProvider({Dio? dio, FlutterSecureStorage? storage})
       : _dio = dio ?? Dio(),
@@ -24,6 +25,11 @@ class GeminiProvider implements ApiEngine {
       throw Exception('Gemini API key not configured');
     }
     return _cachedKey!;
+  }
+
+  Future<String> _getModel() async {
+    _cachedModel ??= await _storage.read(key: AppConstants.keyGeminiModel);
+    return _cachedModel ?? 'gemini-2.0-flash';
   }
 
   @override
@@ -42,7 +48,8 @@ class GeminiProvider implements ApiEngine {
       prompt += '\nThe user selected model: $modelHint.';
     }
 
-    final url = '${AppConstants.geminiEndpoint}/gemini-2.0-flash:generateContent?key=$apiKey';
+    final modelName = await _getModel();
+    final url = '${AppConstants.geminiEndpoint}/$modelName:generateContent?key=$apiKey';
 
     final response = await _dio.post(
       url,
@@ -87,8 +94,9 @@ class GeminiProvider implements ApiEngine {
   Future<bool> testConnection() async {
     try {
       final apiKey = await _getApiKey();
+      final modelName = await _getModel();
       final url =
-          '${AppConstants.geminiEndpoint}/gemini-2.0-flash:generateContent?key=$apiKey';
+          '${AppConstants.geminiEndpoint}/$modelName:generateContent?key=$apiKey';
       final response = await _dio.post(
         url,
         options: Options(headers: {

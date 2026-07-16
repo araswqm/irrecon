@@ -38,6 +38,10 @@ class AppConstants {
   static const String keyGeminiKey = 'gemini_api_key';
   static const String keyOllamaUrl = 'ollama_url';
   static const String keySelectedProvider = 'selected_provider';
+  static const String keyOpenAiModel = 'openai_model';
+  static const String keyAnthropicModel = 'anthropic_model';
+  static const String keyGeminiModel = 'gemini_model';
+  static const String keyOllamaModel = 'ollama_model';
   static const String keyCustomEndpoint = 'custom_api_endpoint';
   static const String keyCustomHeaders = 'custom_api_headers';
   static const String keyCustomBodyTemplate = 'custom_api_body_template';
